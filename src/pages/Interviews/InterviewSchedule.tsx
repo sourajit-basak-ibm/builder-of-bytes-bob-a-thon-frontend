@@ -1,18 +1,23 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { scheduleInterview, listCandidates, listStaffingRequests } from '@/services/api';
 import { InterviewType, InterviewScheduleRequest } from '@/types/api';
 
 export const InterviewSchedule = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { addInterview, candidates, setCandidates, staffingRequests, setStaffingRequests } = useStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Get pre-filled data from navigation state (if coming from staffing request match)
+  const prefilledData = location.state as { candidateId?: string; staffingRequestId?: string } | null;
 
   const [formData, setFormData] = useState<InterviewScheduleRequest>({
-    candidateId: '',
-    staffingRequestId: '',
+    candidateId: prefilledData?.candidateId || '',
+    staffingRequestId: prefilledData?.staffingRequestId || '',
     scheduledAt: '',
     interviewType: InterviewType.TECHNICAL,
     panelMembers: [],
@@ -39,45 +44,101 @@ export const InterviewSchedule = () => {
     fetchData();
   }, [candidates, staffingRequests, setCandidates, setStaffingRequests]);
 
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    // Candidate validation
+    if (!formData.candidateId) {
+      errors.candidateId = 'Please select a candidate';
+    }
+
+    // Staffing request validation
+    if (!formData.staffingRequestId) {
+      errors.staffingRequestId = 'Please select a staffing request';
+    }
+
+    // Date/time validation
+    if (!formData.scheduledAt) {
+      errors.scheduledAt = 'Please select a date and time';
+    } else {
+      const scheduledDate = new Date(formData.scheduledAt);
+      const now = new Date();
+      if (scheduledDate < now) {
+        errors.scheduledAt = 'Interview cannot be scheduled in the past';
+      }
+      // Check if it's within business hours (9 AM - 6 PM)
+      const hours = scheduledDate.getHours();
+      if (hours < 9 || hours >= 18) {
+        errors.scheduledAt = 'Please schedule during business hours (9 AM - 6 PM)';
+      }
+    }
+
+    // Duration validation
+    if (!formData.durationMinutes || formData.durationMinutes < 15) {
+      errors.durationMinutes = 'Duration must be at least 15 minutes';
+    } else if (formData.durationMinutes > 240) {
+      errors.durationMinutes = 'Duration cannot exceed 4 hours (240 minutes)';
+    }
+
+    // Panel members validation
+    if (formData.panelMembers.length === 0) {
+      errors.panelMembers = 'At least one panel member is required';
+    } else if (formData.interviewType === InterviewType.TECHNICAL && formData.panelMembers.length < 2) {
+      errors.panelMembers = 'Technical interviews require at least 2 panel members';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     
-    if (!formData.candidateId || !formData.staffingRequestId) {
-      setError('Please select a candidate and staffing request');
-      return;
-    }
-
-    if (!formData.scheduledAt) {
-      setError('Please select a date and time');
-      return;
-    }
-
-    if (formData.panelMembers.length === 0) {
-      setError('At least one panel member is required');
+    if (!validateForm()) {
+      setError('Please fix the validation errors below');
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      const interview = await scheduleInterview(formData);
+      
+      // Convert datetime-local format to ISO 8601 format
+      const scheduledAtISO = new Date(formData.scheduledAt).toISOString();
+      
+      const requestData: InterviewScheduleRequest = {
+        ...formData,
+        scheduledAt: scheduledAtISO,
+      };
+      
+      const interview = await scheduleInterview(requestData);
       addInterview(interview);
       navigate('/interviews');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to schedule interview');
+      console.error('Interview scheduling error:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to schedule interview');
     } finally {
       setLoading(false);
     }
   };
 
   const addPanelMember = () => {
-    if (panelMemberInput.trim() && !formData.panelMembers.includes(panelMemberInput.trim())) {
-      setFormData({
-        ...formData,
-        panelMembers: [...formData.panelMembers, panelMemberInput.trim()],
-      });
-      setPanelMemberInput('');
+    const member = panelMemberInput.trim();
+    if (!member) {
+      setFieldErrors({ ...fieldErrors, panelMembers: 'Panel member name is required' });
+      return;
     }
+    if (formData.panelMembers.some(m => m.toLowerCase() === member.toLowerCase())) {
+      setFieldErrors({ ...fieldErrors, panelMembers: 'This panel member is already added' });
+      return;
+    }
+    setFormData({
+      ...formData,
+      panelMembers: [...formData.panelMembers, member],
+    });
+    setPanelMemberInput('');
+    setFieldErrors({ ...fieldErrors, panelMembers: '' });
   };
 
   const removePanelMember = (member: string) => {
@@ -106,18 +167,24 @@ export const InterviewSchedule = () => {
               Candidate <span className="text-red-500">*</span>
             </label>
             <select
-              className="input"
+              className={`input ${fieldErrors.candidateId ? 'border-red-500' : ''}`}
               value={formData.candidateId}
-              onChange={(e) => setFormData({ ...formData, candidateId: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, candidateId: e.target.value });
+                setFieldErrors({ ...fieldErrors, candidateId: '' });
+              }}
               required
             >
               <option value="">Select a candidate</option>
-              {candidates.map((candidate) => (
+              {candidates.filter(c => c.status !== 'CandidateRejected').map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
-                  {candidate.name} ({candidate.email})
+                  {candidate.name} ({candidate.email}) - {candidate.status}
                 </option>
               ))}
             </select>
+            {fieldErrors.candidateId && (
+              <p className="text-sm text-red-600 mt-1">{fieldErrors.candidateId}</p>
+            )}
           </div>
 
           <div>
@@ -125,18 +192,24 @@ export const InterviewSchedule = () => {
               Staffing Request <span className="text-red-500">*</span>
             </label>
             <select
-              className="input"
+              className={`input ${fieldErrors.staffingRequestId ? 'border-red-500' : ''}`}
               value={formData.staffingRequestId}
-              onChange={(e) => setFormData({ ...formData, staffingRequestId: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, staffingRequestId: e.target.value });
+                setFieldErrors({ ...fieldErrors, staffingRequestId: '' });
+              }}
               required
             >
               <option value="">Select a staffing request</option>
-              {staffingRequests.map((request) => (
+              {staffingRequests.filter(r => r.status === 'RequestOpen' || r.status === 'RequestInProgress').map((request) => (
                 <option key={request.id} value={request.id}>
-                  Request #{request.id.substring(0, 8)} - {request.urgency} Priority
+                  Request #{request.id.substring(0, 8)} - {request.urgency} Priority ({request.status})
                 </option>
               ))}
             </select>
+            {fieldErrors.staffingRequestId && (
+              <p className="text-sm text-red-600 mt-1">{fieldErrors.staffingRequestId}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -160,17 +233,27 @@ export const InterviewSchedule = () => {
             </div>
 
             <div>
-              <label className="label">Duration (minutes)</label>
+              <label className="label">
+                Duration (minutes) <span className="text-red-500">*</span>
+              </label>
               <input
                 type="number"
-                className="input"
+                className={`input ${fieldErrors.durationMinutes ? 'border-red-500' : ''}`}
                 min="15"
+                max="240"
                 step="15"
                 value={formData.durationMinutes}
-                onChange={(e) =>
-                  setFormData({ ...formData, durationMinutes: parseInt(e.target.value) || 60 })
-                }
+                onChange={(e) => {
+                  setFormData({ ...formData, durationMinutes: parseInt(e.target.value) || 60 });
+                  setFieldErrors({ ...fieldErrors, durationMinutes: '' });
+                }}
               />
+              {fieldErrors.durationMinutes && (
+                <p className="text-sm text-red-600 mt-1">{fieldErrors.durationMinutes}</p>
+              )}
+              <p className="text-sm text-gray-500 mt-1">
+                15-240 minutes (in 15-minute increments)
+              </p>
             </div>
           </div>
 
@@ -180,11 +263,21 @@ export const InterviewSchedule = () => {
             </label>
             <input
               type="datetime-local"
-              className="input"
+              className={`input ${fieldErrors.scheduledAt ? 'border-red-500' : ''}`}
               value={formData.scheduledAt}
-              onChange={(e) => setFormData({ ...formData, scheduledAt: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, scheduledAt: e.target.value });
+                setFieldErrors({ ...fieldErrors, scheduledAt: '' });
+              }}
+              min={new Date().toISOString().slice(0, 16)}
               required
             />
+            {fieldErrors.scheduledAt && (
+              <p className="text-sm text-red-600 mt-1">{fieldErrors.scheduledAt}</p>
+            )}
+            <p className="text-sm text-gray-500 mt-1">
+              Schedule during business hours (9 AM - 6 PM)
+            </p>
           </div>
 
           <div>
@@ -194,11 +287,14 @@ export const InterviewSchedule = () => {
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
-                className="input"
+                className={`input ${fieldErrors.panelMembers ? 'border-red-500' : ''}`}
                 value={panelMemberInput}
-                onChange={(e) => setPanelMemberInput(e.target.value)}
+                onChange={(e) => {
+                  setPanelMemberInput(e.target.value);
+                  setFieldErrors({ ...fieldErrors, panelMembers: '' });
+                }}
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addPanelMember())}
-                placeholder="Enter panel member name"
+                placeholder="Enter panel member name (e.g., John Doe - Tech Lead)"
               />
               <button
                 type="button"
@@ -208,6 +304,9 @@ export const InterviewSchedule = () => {
                 Add
               </button>
             </div>
+            {fieldErrors.panelMembers && (
+              <p className="text-sm text-red-600 mb-2">{fieldErrors.panelMembers}</p>
+            )}
             <div className="flex flex-wrap gap-2">
               {formData.panelMembers.map((member) => (
                 <span
@@ -225,9 +324,16 @@ export const InterviewSchedule = () => {
                 </span>
               ))}
             </div>
-            <p className="text-sm text-gray-500 mt-2">
-              At least one technical expert is required for technical interviews
-            </p>
+            {formData.panelMembers.length === 0 && (
+              <p className="text-sm text-gray-500 mt-2">
+                Add at least one panel member to continue
+              </p>
+            )}
+            {formData.interviewType === InterviewType.TECHNICAL && formData.panelMembers.length === 1 && (
+              <p className="text-sm text-orange-600 mt-2">
+                ⚠️ Technical interviews should have at least 2 panel members
+              </p>
+            )}
           </div>
 
           <div className="flex gap-4">

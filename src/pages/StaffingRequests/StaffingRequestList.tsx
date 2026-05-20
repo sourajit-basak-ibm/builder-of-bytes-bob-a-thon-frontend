@@ -1,22 +1,40 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
-import { listStaffingRequests, matchCandidates } from '@/services/api';
+import { listStaffingRequests, matchCandidates, listProjects } from '@/services/api';
 import { StaffingRequestStatus, Urgency } from '@/types/api';
 import type { MatchResponse } from '@/types/api';
 
 export const StaffingRequestList = () => {
-  const { staffingRequests, setStaffingRequests, projects, loading, setLoading } = useStore();
+  const navigate = useNavigate();
+  const { staffingRequests, setStaffingRequests, projects, setProjects, onboardings, loading, setLoading } = useStore();
   const [error, setError] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
   const [matches, setMatches] = useState<MatchResponse[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(false);
 
+  // Helper function to check if candidate has active onboarding
+  const hasActiveOnboarding = (candidateId: string) => {
+    return onboardings.some(
+      onboarding =>
+        onboarding.candidateId === candidateId &&
+        (onboarding.status === 'OnboardingInitiated' || onboarding.status === 'OnboardingInProgress')
+    );
+  };
+
   useEffect(() => {
-    const fetchRequests = async () => {
+    const fetchData = async () => {
       try {
         setLoading('staffingRequests', true);
         setError(null);
+        
+        // Load projects if not already loaded
+        if (projects.length === 0) {
+          const projectsData = await listProjects();
+          setProjects(projectsData);
+        }
+        
+        // Load staffing requests
         const data = await listStaffingRequests();
         setStaffingRequests(data);
       } catch (err) {
@@ -27,15 +45,22 @@ export const StaffingRequestList = () => {
       }
     };
 
-    fetchRequests();
-  }, [setStaffingRequests, setLoading]);
+    fetchData();
+  }, [setStaffingRequests, setProjects, setLoading, projects.length]);
 
   const handleMatchCandidates = async (requestId: string) => {
     try {
       setLoadingMatches(true);
       setSelectedRequest(requestId);
       const matchData = await matchCandidates(requestId);
-      setMatches(matchData);
+      
+      // Filter to show only candidates with:
+      // 1. Mandatory skills matched
+      // 2. Match score > 0 (exclude non-matching candidates)
+      const validMatches = matchData.filter(
+        match => match.mandatorySkillsMatched && match.score > 0
+      );
+      setMatches(validMatches);
     } catch (err) {
       console.error('Failed to match candidates:', err);
       setMatches([]);
@@ -163,35 +188,62 @@ export const StaffingRequestList = () => {
                     Matched Candidates ({matches.length})
                   </h4>
                   <div className="space-y-2">
-                    {matches.map((match) => (
-                      <div
-                        key={match.candidateId}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">
-                              {match.candidateName}
-                            </span>
-                            {match.internalPriority && (
-                              <span className="badge badge-success">Internal</span>
-                            )}
-                            {match.autoConsidered && (
-                              <span className="badge badge-info">Auto-Considered</span>
-                            )}
+                    {matches.map((match) => {
+                      const isOnboarded = hasActiveOnboarding(match.candidateId);
+                      
+                      return (
+                        <div
+                          key={match.candidateId}
+                          className={`flex items-center justify-between p-3 rounded ${
+                            isOnboarded ? 'bg-gray-100 opacity-60' : 'bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-900">
+                                {match.candidateName}
+                              </span>
+                              {isOnboarded && (
+                                <span className="badge badge-success">Already Onboarded</span>
+                              )}
+                              {!isOnboarded && match.internalPriority && (
+                                <span className="badge badge-success">Internal</span>
+                              )}
+                              {!isOnboarded && match.autoConsidered && (
+                                <span className="badge badge-info">Auto-Considered</span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              {isOnboarded
+                                ? 'Candidate is already in onboarding process'
+                                : `Mandatory Skills: ${match.mandatorySkillsMatched ? '✓ Matched' : '✗ Not Matched'}`
+                              }
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            Mandatory Skills: {match.mandatorySkillsMatched ? '✓ Matched' : '✗ Not Matched'}
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <div className="text-2xl font-bold text-primary-600">
+                                {match.score}
+                              </div>
+                              <div className="text-xs text-gray-500">Match Score</div>
+                            </div>
+                            {!isOnboarded && (
+                              <button
+                                onClick={() => navigate('/interviews/schedule', {
+                                  state: {
+                                    candidateId: match.candidateId,
+                                    staffingRequestId: request.id
+                                  }
+                                })}
+                                className="btn btn-primary whitespace-nowrap"
+                              >
+                                Schedule Interview
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-primary-600">
-                            {match.score}
-                          </div>
-                          <div className="text-xs text-gray-500">Match Score</div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

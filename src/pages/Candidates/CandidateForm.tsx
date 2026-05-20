@@ -6,9 +6,10 @@ import { CandidateSource, ProficiencyLevel, CandidateCreateRequest, SkillRequest
 
 export const CandidateForm = () => {
   const navigate = useNavigate();
-  const { addCandidate } = useStore();
+  const { addCandidate, candidates } = useStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState<CandidateCreateRequest>({
     name: '',
@@ -33,21 +34,71 @@ export const CandidateForm = () => {
     mandatory: false,
   });
 
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    // Name validation
+    if (!formData.name.trim()) {
+      errors.name = 'Full name is required';
+    } else if (formData.name.trim().length < 2) {
+      errors.name = 'Name must be at least 2 characters';
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!emailRegex.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
+    } else if (candidates.some(c => c.email.toLowerCase() === formData.email.toLowerCase())) {
+      errors.email = 'A candidate with this email already exists';
+    }
+
+    // Phone validation
+    const phoneRegex = /^[+]?[\d\s-()]+$/;
+    if (!formData.phone.trim()) {
+      errors.phone = 'Phone number is required';
+    } else if (!phoneRegex.test(formData.phone) || formData.phone.replace(/\D/g, '').length < 10) {
+      errors.phone = 'Please enter a valid phone number (min 10 digits)';
+    }
+
+    // Skills validation
+    if (formData.skills.length === 0) {
+      errors.skills = 'At least one skill is required';
+    }
+
+    // Resume validation
+    const urlRegex = /^https?:\/\/.+/;
+    if (!formData.resume.url.trim()) {
+      errors.resumeUrl = 'Resume URL is required';
+    } else if (!urlRegex.test(formData.resume.url)) {
+      errors.resumeUrl = 'Please enter a valid URL (must start with http:// or https://)';
+    }
+
+    if (!formData.resume.summary.trim()) {
+      errors.resumeSummary = 'Resume summary is required';
+    } else if (formData.resume.summary.trim().length < 20) {
+      errors.resumeSummary = 'Please provide a more detailed summary (at least 20 characters)';
+    }
+
+    if (!formData.resume.sourceName.trim()) {
+      errors.resumeSource = 'Resume source name is required';
+    }
+
+    if (!formData.resume.sourceType.trim()) {
+      errors.resumeSourceType = 'Resume source type is required';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     
-    if (!formData.name.trim() || !formData.email.trim() || !formData.phone.trim()) {
-      setError('Name, email, and phone are required');
-      return;
-    }
-
-    if (formData.skills.length === 0) {
-      setError('At least one skill is required');
-      return;
-    }
-
-    if (!formData.resume.url.trim() || !formData.resume.summary.trim()) {
-      setError('Resume URL and summary are required');
+    if (!validateForm()) {
+      setError('Please fix the validation errors below');
       return;
     }
 
@@ -65,18 +116,25 @@ export const CandidateForm = () => {
   };
 
   const addSkill = () => {
-    if (skillInput.name.trim()) {
-      setFormData({
-        ...formData,
-        skills: [...formData.skills, { ...skillInput }],
-      });
-      setSkillInput({
-        name: '',
-        proficiency: ProficiencyLevel.INTERMEDIATE,
-        minimumYearsOfExperience: 0,
-        mandatory: false,
-      });
+    if (!skillInput.name.trim()) {
+      setFieldErrors({ ...fieldErrors, skills: 'Skill name is required' });
+      return;
     }
+    if (formData.skills.some(s => s.name.toLowerCase() === skillInput.name.trim().toLowerCase())) {
+      setFieldErrors({ ...fieldErrors, skills: 'This skill is already added' });
+      return;
+    }
+    setFormData({
+      ...formData,
+      skills: [...formData.skills, { ...skillInput }],
+    });
+    setSkillInput({
+      name: '',
+      proficiency: ProficiencyLevel.INTERMEDIATE,
+      minimumYearsOfExperience: 0,
+      mandatory: false,
+    });
+    setFieldErrors({ ...fieldErrors, skills: '' });
   };
 
   const removeSkill = (index: number) => {
@@ -111,12 +169,18 @@ export const CandidateForm = () => {
                 </label>
                 <input
                   type="text"
-                  className="input"
+                  className={`input ${fieldErrors.name ? 'border-red-500' : ''}`}
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, name: e.target.value });
+                    setFieldErrors({ ...fieldErrors, name: '' });
+                  }}
                   placeholder="John Doe"
                   required
                 />
+                {fieldErrors.name && (
+                  <p className="text-sm text-red-600 mt-1">{fieldErrors.name}</p>
+                )}
               </div>
 
               <div>
@@ -142,12 +206,18 @@ export const CandidateForm = () => {
                 </label>
                 <input
                   type="email"
-                  className="input"
+                  className={`input ${fieldErrors.email ? 'border-red-500' : ''}`}
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    setFieldErrors({ ...fieldErrors, email: '' });
+                  }}
                   placeholder="john.doe@example.com"
                   required
                 />
+                {fieldErrors.email && (
+                  <p className="text-sm text-red-600 mt-1">{fieldErrors.email}</p>
+                )}
               </div>
 
               <div>
@@ -156,12 +226,18 @@ export const CandidateForm = () => {
                 </label>
                 <input
                   type="tel"
-                  className="input"
+                  className={`input ${fieldErrors.phone ? 'border-red-500' : ''}`}
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+1234567890"
+                  onChange={(e) => {
+                    setFormData({ ...formData, phone: e.target.value });
+                    setFieldErrors({ ...fieldErrors, phone: '' });
+                  }}
+                  placeholder="+1 (234) 567-8900"
                   required
                 />
+                {fieldErrors.phone && (
+                  <p className="text-sm text-red-600 mt-1">{fieldErrors.phone}</p>
+                )}
               </div>
             </div>
           </div>
@@ -177,10 +253,13 @@ export const CandidateForm = () => {
                 <label className="label">Skill Name</label>
                 <input
                   type="text"
-                  className="input"
+                  className={`input ${fieldErrors.skills ? 'border-red-500' : ''}`}
                   value={skillInput.name}
-                  onChange={(e) => setSkillInput({ ...skillInput, name: e.target.value })}
-                  placeholder="e.g., React"
+                  onChange={(e) => {
+                    setSkillInput({ ...skillInput, name: e.target.value });
+                    setFieldErrors({ ...fieldErrors, skills: '' });
+                  }}
+                  placeholder="e.g., React, Java, Python"
                 />
               </div>
 
@@ -237,6 +316,9 @@ export const CandidateForm = () => {
               </label>
             </div>
 
+            {fieldErrors.skills && (
+              <p className="text-sm text-red-600 mb-2">{fieldErrors.skills}</p>
+            )}
             <div className="flex flex-wrap gap-2">
               {formData.skills.map((skill, index) => (
                 <span
@@ -255,6 +337,11 @@ export const CandidateForm = () => {
                 </span>
               ))}
             </div>
+            {formData.skills.length === 0 && (
+              <p className="text-sm text-gray-500 mt-2">
+                Add at least one skill to continue
+              </p>
+            )}
           </div>
 
           {/* Resume */}
@@ -265,54 +352,66 @@ export const CandidateForm = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="label">Source Name</label>
+                <label className="label">Source Name <span className="text-red-500">*</span></label>
                 <input
                   type="text"
-                  className="input"
+                  className={`input ${fieldErrors.resumeSource ? 'border-red-500' : ''}`}
                   value={formData.resume.sourceName}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData({
                       ...formData,
                       resume: { ...formData.resume, sourceName: e.target.value },
-                    })
-                  }
-                  placeholder="LinkedIn, Indeed, etc."
+                    });
+                    setFieldErrors({ ...fieldErrors, resumeSource: '' });
+                  }}
+                  placeholder="LinkedIn, Indeed, Naukri, etc."
                   required
                 />
+                {fieldErrors.resumeSource && (
+                  <p className="text-sm text-red-600 mt-1">{fieldErrors.resumeSource}</p>
+                )}
               </div>
 
               <div>
-                <label className="label">Source Type</label>
+                <label className="label">Source Type <span className="text-red-500">*</span></label>
                 <input
                   type="text"
-                  className="input"
+                  className={`input ${fieldErrors.resumeSourceType ? 'border-red-500' : ''}`}
                   value={formData.resume.sourceType}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData({
                       ...formData,
                       resume: { ...formData.resume, sourceType: e.target.value },
-                    })
-                  }
-                  placeholder="Job Portal, Referral, etc."
+                    });
+                    setFieldErrors({ ...fieldErrors, resumeSourceType: '' });
+                  }}
+                  placeholder="Job Portal, Referral, Direct Application, etc."
                   required
                 />
+                {fieldErrors.resumeSourceType && (
+                  <p className="text-sm text-red-600 mt-1">{fieldErrors.resumeSourceType}</p>
+                )}
               </div>
 
               <div>
-                <label className="label">Resume URL</label>
+                <label className="label">Resume URL <span className="text-red-500">*</span></label>
                 <input
                   type="url"
-                  className="input"
+                  className={`input ${fieldErrors.resumeUrl ? 'border-red-500' : ''}`}
                   value={formData.resume.url}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData({
                       ...formData,
                       resume: { ...formData.resume, url: e.target.value },
-                    })
-                  }
-                  placeholder="https://..."
+                    });
+                    setFieldErrors({ ...fieldErrors, resumeUrl: '' });
+                  }}
+                  placeholder="https://drive.google.com/..."
                   required
                 />
+                {fieldErrors.resumeUrl && (
+                  <p className="text-sm text-red-600 mt-1">{fieldErrors.resumeUrl}</p>
+                )}
               </div>
 
               <div>
@@ -332,20 +431,27 @@ export const CandidateForm = () => {
               </div>
 
               <div className="md:col-span-2">
-                <label className="label">Summary</label>
+                <label className="label">Summary <span className="text-red-500">*</span></label>
                 <textarea
-                  className="input"
+                  className={`input ${fieldErrors.resumeSummary ? 'border-red-500' : ''}`}
                   rows={4}
                   value={formData.resume.summary}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData({
                       ...formData,
                       resume: { ...formData.resume, summary: e.target.value },
-                    })
-                  }
-                  placeholder="Brief summary of candidate's background and experience"
+                    });
+                    setFieldErrors({ ...fieldErrors, resumeSummary: '' });
+                  }}
+                  placeholder="Brief summary of candidate's background, experience, and key achievements (min 20 characters)"
                   required
                 />
+                {fieldErrors.resumeSummary && (
+                  <p className="text-sm text-red-600 mt-1">{fieldErrors.resumeSummary}</p>
+                )}
+                <p className="text-sm text-gray-500 mt-1">
+                  {formData.resume.summary.length} characters
+                </p>
               </div>
             </div>
           </div>

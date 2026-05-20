@@ -1,19 +1,27 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
-import { initiateOnboarding, listCandidates, listProjects, listMeetings } from '@/services/api';
+import { initiateOnboarding, listCandidates, listProjects, listMeetings, listInterviews } from '@/services/api';
 import { OnboardingInitiateRequest } from '@/types/api';
 
 export const OnboardingInitiate = () => {
   const navigate = useNavigate();
-  const { addOnboarding, candidates, setCandidates, projects, setProjects, meetings, setMeetings } = useStore();
+  const location = useLocation();
+  const { addOnboarding, candidates, setCandidates, projects, setProjects, meetings, setMeetings, interviews, setInterviews } = useStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Get pre-filled data from navigation state (if coming from meeting with agreement reached)
+  const prefilledData = location.state as {
+    candidateId?: string;
+    projectId?: string;
+    meetingId?: string;
+  } | null;
+
   const [formData, setFormData] = useState<OnboardingInitiateRequest>({
-    candidateId: '',
-    projectId: '',
-    faceToFaceMeetingId: '',
+    candidateId: prefilledData?.candidateId || '',
+    projectId: prefilledData?.projectId || '',
+    faceToFaceMeetingId: prefilledData?.meetingId || '',
     trainingProgramName: '',
     expectedCompletionDate: '',
   });
@@ -33,12 +41,16 @@ export const OnboardingInitiate = () => {
           const meetingsData = await listMeetings();
           setMeetings(meetingsData);
         }
+        if (interviews.length === 0) {
+          const interviewsData = await listInterviews();
+          setInterviews(interviewsData);
+        }
       } catch (err) {
         console.error('Failed to load data:', err);
       }
     };
     fetchData();
-  }, [candidates, projects, meetings, setCandidates, setProjects, setMeetings]);
+  }, [candidates, projects, meetings, interviews, setCandidates, setProjects, setMeetings, setInterviews]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +75,21 @@ export const OnboardingInitiate = () => {
     try {
       setLoading(true);
       setError(null);
+      
+      // Find the staffing request ID from the interview
+      const meeting = meetings.find(m => m.id === formData.faceToFaceMeetingId);
+      if (meeting) {
+        // Find interview for this candidate and project
+        const interview = interviews.find(
+          i => i.candidateId === meeting.candidateId && i.staffingRequestId
+        );
+        
+        if (interview) {
+          console.log('Onboarding initiated for staffing request:', interview.staffingRequestId);
+          // Note: Backend should handle status update to RequestFulfilled
+        }
+      }
+      
       const onboarding = await initiateOnboarding(formData);
       addOnboarding(onboarding);
       navigate('/onboarding');

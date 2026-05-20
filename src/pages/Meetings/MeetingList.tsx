@@ -1,16 +1,26 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { listMeetings, completeMeeting } from '@/services/api';
 import { MeetingStatus } from '@/types/api';
 import { format } from 'date-fns';
 
 export const MeetingList = () => {
-  const { meetings, setMeetings, candidates, projects, loading, setLoading, updateMeeting } = useStore();
+  const navigate = useNavigate();
+  const { meetings, setMeetings, candidates, projects, onboardings, loading, setLoading, updateMeeting } = useStore();
   const [error, setError] = useState<string | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [outcome, setOutcome] = useState('');
   const [agreementReached, setAgreementReached] = useState(false);
+
+  // Helper function to check if candidate has active onboarding
+  const hasActiveOnboarding = (candidateId: string) => {
+    return onboardings.some(
+      onboarding =>
+        onboarding.candidateId === candidateId &&
+        (onboarding.status === 'OnboardingInitiated' || onboarding.status === 'OnboardingInProgress')
+    );
+  };
 
   useEffect(() => {
     const fetchMeetings = async () => {
@@ -159,10 +169,36 @@ export const MeetingList = () => {
                   </div>
                   <p className="text-sm text-gray-600">{meeting.outcome}</p>
                   {meeting.agreementReached && (
-                    <div className="mt-3 bg-green-50 border border-green-200 rounded p-3">
-                      <p className="text-sm text-green-800">
-                        ✓ Meeting successful! Candidate can now proceed to onboarding.
-                      </p>
+                    <div className={`mt-3 border rounded p-3 ${
+                      hasActiveOnboarding(meeting.candidateId)
+                        ? 'bg-gray-50 border-gray-200'
+                        : 'bg-green-50 border-green-200'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        {hasActiveOnboarding(meeting.candidateId) ? (
+                          <p className="text-sm text-gray-800">
+                            ✓ Candidate is already in the onboarding process.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-sm text-green-800">
+                              ✓ Meeting successful! Candidate can now proceed to onboarding.
+                            </p>
+                            <button
+                              onClick={() => navigate('/onboarding/initiate', {
+                                state: {
+                                  candidateId: meeting.candidateId,
+                                  projectId: meeting.projectId,
+                                  meetingId: meeting.id
+                                }
+                              })}
+                              className="btn btn-primary whitespace-nowrap ml-4"
+                            >
+                              Initiate Onboarding
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

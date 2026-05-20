@@ -6,9 +6,10 @@ import { ProjectStatus, ProjectRequest } from '@/types/api';
 
 export const ProjectForm = () => {
   const navigate = useNavigate();
-  const { addProject } = useStore();
+  const { addProject, projects } = useStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState<ProjectRequest>({
     name: '',
@@ -21,16 +22,48 @@ export const ProjectForm = () => {
 
   const [techInput, setTechInput] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
     
+    // Project name validation
     if (!formData.name.trim()) {
-      setError('Project name is required');
-      return;
+      errors.name = 'Project name is required';
+    } else if (formData.name.trim().length < 3) {
+      errors.name = 'Project name must be at least 3 characters';
+    } else if (projects.some(p => p.name.toLowerCase() === formData.name.trim().toLowerCase())) {
+      errors.name = 'A project with this name already exists';
     }
 
+    // Technology stack validation
     if (formData.technologyStack.length === 0) {
-      setError('At least one technology is required');
+      errors.technologyStack = 'At least one technology is required';
+    }
+
+    // Start date validation
+    const startDate = new Date(formData.startDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (startDate < today && formData.status === ProjectStatus.PLANNING) {
+      errors.startDate = 'Start date cannot be in the past for planning projects';
+    }
+
+    // Commitments validation
+    if (!formData.commitments.trim()) {
+      errors.commitments = 'Project commitments are required';
+    } else if (formData.commitments.trim().length < 10) {
+      errors.commitments = 'Please provide more detailed commitments (at least 10 characters)';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    
+    if (!validateForm()) {
+      setError('Please fix the validation errors below');
       return;
     }
 
@@ -48,13 +81,20 @@ export const ProjectForm = () => {
   };
 
   const addTechnology = () => {
-    if (techInput.trim() && !formData.technologyStack.includes(techInput.trim())) {
-      setFormData({
-        ...formData,
-        technologyStack: [...formData.technologyStack, techInput.trim()],
-      });
-      setTechInput('');
+    const tech = techInput.trim();
+    if (!tech) {
+      return;
     }
+    if (formData.technologyStack.some(t => t.toLowerCase() === tech.toLowerCase())) {
+      setFieldErrors({ ...fieldErrors, technologyStack: 'This technology is already added' });
+      return;
+    }
+    setFormData({
+      ...formData,
+      technologyStack: [...formData.technologyStack, tech],
+    });
+    setTechInput('');
+    setFieldErrors({ ...fieldErrors, technologyStack: '' });
   };
 
   const removeTechnology = (tech: string) => {
@@ -84,12 +124,18 @@ export const ProjectForm = () => {
             </label>
             <input
               type="text"
-              className="input"
+              className={`input ${fieldErrors.name ? 'border-red-500' : ''}`}
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Enter project name"
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                setFieldErrors({ ...fieldErrors, name: '' });
+              }}
+              placeholder="Enter project name (min 3 characters)"
               required
             />
+            {fieldErrors.name && (
+              <p className="text-sm text-red-600 mt-1">{fieldErrors.name}</p>
+            )}
           </div>
 
           <div>
@@ -99,11 +145,14 @@ export const ProjectForm = () => {
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
-                className="input"
+                className={`input ${fieldErrors.technologyStack ? 'border-red-500' : ''}`}
                 value={techInput}
-                onChange={(e) => setTechInput(e.target.value)}
+                onChange={(e) => {
+                  setTechInput(e.target.value);
+                  setFieldErrors({ ...fieldErrors, technologyStack: '' });
+                }}
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTechnology())}
-                placeholder="Add technology (e.g., React, Java)"
+                placeholder="Add technology (e.g., React, Java, Spring Boot)"
               />
               <button
                 type="button"
@@ -113,6 +162,9 @@ export const ProjectForm = () => {
                 Add
               </button>
             </div>
+            {fieldErrors.technologyStack && (
+              <p className="text-sm text-red-600 mb-2">{fieldErrors.technologyStack}</p>
+            )}
             <div className="flex flex-wrap gap-2">
               {formData.technologyStack.map((tech) => (
                 <span
@@ -130,6 +182,11 @@ export const ProjectForm = () => {
                 </span>
               ))}
             </div>
+            {formData.technologyStack.length === 0 && (
+              <p className="text-sm text-gray-500 mt-2">
+                Add at least one technology to continue
+              </p>
+            )}
           </div>
 
           <div>
@@ -157,11 +214,17 @@ export const ProjectForm = () => {
             </label>
             <input
               type="date"
-              className="input"
+              className={`input ${fieldErrors.startDate ? 'border-red-500' : ''}`}
               value={formData.startDate}
-              onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, startDate: e.target.value });
+                setFieldErrors({ ...fieldErrors, startDate: '' });
+              }}
               required
             />
+            {fieldErrors.startDate && (
+              <p className="text-sm text-red-600 mt-1">{fieldErrors.startDate}</p>
+            )}
           </div>
 
           <div>
@@ -180,13 +243,22 @@ export const ProjectForm = () => {
               Commitments <span className="text-red-500">*</span>
             </label>
             <textarea
-              className="input"
+              className={`input ${fieldErrors.commitments ? 'border-red-500' : ''}`}
               rows={4}
               value={formData.commitments}
-              onChange={(e) => setFormData({ ...formData, commitments: e.target.value })}
-              placeholder="Describe project commitments and deliverables"
+              onChange={(e) => {
+                setFormData({ ...formData, commitments: e.target.value });
+                setFieldErrors({ ...fieldErrors, commitments: '' });
+              }}
+              placeholder="Describe project commitments, deliverables, and key objectives (min 10 characters)"
               required
             />
+            {fieldErrors.commitments && (
+              <p className="text-sm text-red-600 mt-1">{fieldErrors.commitments}</p>
+            )}
+            <p className="text-sm text-gray-500 mt-1">
+              {formData.commitments.length} characters
+            </p>
           </div>
 
           <div className="flex gap-4">

@@ -9,6 +9,7 @@ export const StaffingRequestForm = () => {
   const { addStaffingRequest, projects, setProjects } = useStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState<StaffingRequestCreateRequest>({
     projectId: '',
@@ -38,16 +39,41 @@ export const StaffingRequestForm = () => {
     fetchProjects();
   }, [projects, setProjects]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
     
+    // Project validation
     if (!formData.projectId) {
-      setError('Please select a project');
-      return;
+      errors.projectId = 'Please select a project';
     }
 
+    // Number of positions validation
+    if (!formData.numberOfPositions || formData.numberOfPositions < 1) {
+      errors.numberOfPositions = 'Number of positions must be at least 1';
+    } else if (formData.numberOfPositions > 50) {
+      errors.numberOfPositions = 'Number of positions cannot exceed 50';
+    }
+
+    // Skills validation
     if (formData.skills.length === 0) {
-      setError('At least one skill is required');
+      errors.skills = 'At least one skill is required';
+    }
+
+    const hasMandatorySkill = formData.skills.some(s => s.mandatory);
+    if (!hasMandatorySkill && formData.skills.length > 0) {
+      errors.skills = 'At least one skill should be marked as mandatory for better candidate matching';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    
+    if (!validateForm()) {
+      setError('Please fix the validation errors below');
       return;
     }
 
@@ -65,18 +91,25 @@ export const StaffingRequestForm = () => {
   };
 
   const addSkill = () => {
-    if (skillInput.name.trim()) {
-      setFormData({
-        ...formData,
-        skills: [...formData.skills, { ...skillInput }],
-      });
-      setSkillInput({
-        name: '',
-        proficiency: ProficiencyLevel.INTERMEDIATE,
-        minimumYearsOfExperience: 0,
-        mandatory: false,
-      });
+    if (!skillInput.name.trim()) {
+      setFieldErrors({ ...fieldErrors, skills: 'Skill name is required' });
+      return;
     }
+    if (formData.skills.some(s => s.name.toLowerCase() === skillInput.name.trim().toLowerCase())) {
+      setFieldErrors({ ...fieldErrors, skills: 'This skill is already added' });
+      return;
+    }
+    setFormData({
+      ...formData,
+      skills: [...formData.skills, { ...skillInput }],
+    });
+    setSkillInput({
+      name: '',
+      proficiency: ProficiencyLevel.INTERMEDIATE,
+      minimumYearsOfExperience: 0,
+      mandatory: false,
+    });
+    setFieldErrors({ ...fieldErrors, skills: '' });
   };
 
   const removeSkill = (index: number) => {
@@ -105,37 +138,58 @@ export const StaffingRequestForm = () => {
               Project <span className="text-red-500">*</span>
             </label>
             <select
-              className="input"
+              className={`input ${fieldErrors.projectId ? 'border-red-500' : ''}`}
               value={formData.projectId}
-              onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, projectId: e.target.value });
+                setFieldErrors({ ...fieldErrors, projectId: '' });
+              }}
               required
             >
               <option value="">Select a project</option>
-              {projects.map((project) => (
+              {projects.filter(p => p.status === 'ACTIVE' || p.status === 'PLANNING').map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name} ({project.status})
                 </option>
               ))}
             </select>
+            {fieldErrors.projectId && (
+              <p className="text-sm text-red-600 mt-1">{fieldErrors.projectId}</p>
+            )}
             {projects.length === 0 && (
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-red-600 mt-1">
                 No projects available. Please create a project first.
+              </p>
+            )}
+            {projects.length > 0 && projects.filter(p => p.status === 'ACTIVE' || p.status === 'PLANNING').length === 0 && (
+              <p className="text-sm text-orange-600 mt-1">
+                No active or planning projects available. Only active/planning projects can have staffing requests.
               </p>
             )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="label">Number of Positions</label>
+              <label className="label">
+                Number of Positions <span className="text-red-500">*</span>
+              </label>
               <input
                 type="number"
-                className="input"
+                className={`input ${fieldErrors.numberOfPositions ? 'border-red-500' : ''}`}
                 min="1"
+                max="50"
                 value={formData.numberOfPositions}
-                onChange={(e) =>
-                  setFormData({ ...formData, numberOfPositions: parseInt(e.target.value) || 1 })
-                }
+                onChange={(e) => {
+                  setFormData({ ...formData, numberOfPositions: parseInt(e.target.value) || 1 });
+                  setFieldErrors({ ...fieldErrors, numberOfPositions: '' });
+                }}
               />
+              {fieldErrors.numberOfPositions && (
+                <p className="text-sm text-red-600 mt-1">{fieldErrors.numberOfPositions}</p>
+              )}
+              <p className="text-sm text-gray-500 mt-1">
+                Enter number between 1 and 50
+              </p>
             </div>
 
             <div>
@@ -165,10 +219,13 @@ export const StaffingRequestForm = () => {
                 <label className="label">Skill Name</label>
                 <input
                   type="text"
-                  className="input"
+                  className={`input ${fieldErrors.skills ? 'border-red-500' : ''}`}
                   value={skillInput.name}
-                  onChange={(e) => setSkillInput({ ...skillInput, name: e.target.value })}
-                  placeholder="e.g., Java, React"
+                  onChange={(e) => {
+                    setSkillInput({ ...skillInput, name: e.target.value });
+                    setFieldErrors({ ...fieldErrors, skills: '' });
+                  }}
+                  placeholder="e.g., Java, React, Python"
                 />
               </div>
 
@@ -227,11 +284,18 @@ export const StaffingRequestForm = () => {
 
             <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
               <p className="text-sm text-blue-800">
-                <strong>Note:</strong> Candidates with match score {'>'} 70 will be auto-considered.
-                Mandatory skills must be present for any match.
+                <strong>Matching Rules:</strong>
               </p>
+              <ul className="text-sm text-blue-800 mt-2 ml-4 list-disc">
+                <li>Candidates with match score {'>'} 70 will be auto-considered</li>
+                <li>Mandatory skills must be present for any match</li>
+                <li>At least one skill should be marked as mandatory</li>
+              </ul>
             </div>
 
+            {fieldErrors.skills && (
+              <p className="text-sm text-red-600 mb-2">{fieldErrors.skills}</p>
+            )}
             <div className="flex flex-wrap gap-2">
               {formData.skills.map((skill, index) => (
                 <span
@@ -251,6 +315,16 @@ export const StaffingRequestForm = () => {
                 </span>
               ))}
             </div>
+            {formData.skills.length === 0 && (
+              <p className="text-sm text-gray-500 mt-2">
+                Add at least one skill to continue
+              </p>
+            )}
+            {formData.skills.length > 0 && !formData.skills.some(s => s.mandatory) && (
+              <p className="text-sm text-orange-600 mt-2">
+                ⚠️ Consider marking at least one skill as mandatory for better candidate matching
+              </p>
+            )}
           </div>
 
           <div className="flex gap-4">

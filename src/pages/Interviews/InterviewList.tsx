@@ -1,16 +1,26 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { listInterviews, completeInterview } from '@/services/api';
 import { InterviewStatus, InterviewType } from '@/types/api';
 import { format } from 'date-fns';
 
 export const InterviewList = () => {
-  const { interviews, setInterviews, candidates, loading, setLoading, updateInterview } = useStore();
+  const navigate = useNavigate();
+  const { interviews, setInterviews, candidates, onboardings, loading, setLoading, updateInterview } = useStore();
   const [error, setError] = useState<string | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState('');
   const [score, setScore] = useState<number>(0);
+
+  // Helper function to check if candidate has active onboarding
+  const hasActiveOnboarding = (candidateId: string) => {
+    return onboardings.some(
+      onboarding =>
+        onboarding.candidateId === candidateId &&
+        (onboarding.status === 'OnboardingInitiated' || onboarding.status === 'OnboardingInProgress')
+    );
+  };
 
   useEffect(() => {
     const fetchInterviews = async () => {
@@ -181,9 +191,12 @@ export const InterviewList = () => {
               {interview.feedback && (
                 <div className="border-t pt-3 mt-3">
                   <div className="flex justify-between items-start mb-2">
-                    <div className="text-sm font-medium text-gray-700">Feedback:</div>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-gray-700 mb-2">Feedback:</div>
+                      <p className="text-sm text-gray-600">{interview.feedback}</p>
+                    </div>
                     {interview.overallScore !== undefined && (
-                      <div className="text-right">
+                      <div className="text-right ml-4">
                         <div className="text-2xl font-bold text-primary-600">
                           {interview.overallScore}
                         </div>
@@ -191,7 +204,45 @@ export const InterviewList = () => {
                       </div>
                     )}
                   </div>
-                  <p className="text-sm text-gray-600">{interview.feedback}</p>
+                  
+                  {/* Show Schedule Meeting button if score >= 80 */}
+                  {interview.overallScore !== undefined && interview.overallScore >= 80 && (
+                    <div className="mt-4 pt-3 border-t">
+                      <div className={`flex items-center justify-between p-3 rounded ${
+                        hasActiveOnboarding(interview.candidateId)
+                          ? 'bg-gray-50'
+                          : 'bg-green-50'
+                      }`}>
+                        <div>
+                          {hasActiveOnboarding(interview.candidateId) ? (
+                            <>
+                              <div className="font-medium text-gray-900">Candidate Already Onboarded</div>
+                              <div className="text-sm text-gray-700">This candidate is already in the onboarding process.</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="font-medium text-green-900">High Score - Eligible for Face-to-Face Meeting</div>
+                              <div className="text-sm text-green-700">This candidate scored {interview.overallScore}/100 and qualifies for the next stage.</div>
+                            </>
+                          )}
+                        </div>
+                        {!hasActiveOnboarding(interview.candidateId) && (
+                          <button
+                            onClick={() => navigate('/meetings/schedule', {
+                              state: {
+                                candidateId: interview.candidateId,
+                                staffingRequestId: interview.staffingRequestId,
+                                interviewId: interview.id
+                              }
+                            })}
+                            className="btn btn-primary whitespace-nowrap ml-4"
+                          >
+                            Schedule Meeting
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
