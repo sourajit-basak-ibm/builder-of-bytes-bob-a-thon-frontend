@@ -33,14 +33,50 @@ This application manages the entire candidate lifecycle from project creation to
 Before you begin, ensure you have:
 
 - **Node.js 18+** and **npm** installed ([Download here](https://nodejs.org/))
-- **Backend API** running on `http://localhost:8080` ([Backend Repository](../backend))
 - **Git** for version control
+- **Backend repository**: `builder-of-bytes-bob-a-thon-backend`
 
 ### Installation Steps
 
-1. **Clone the repository** (if not already done):
+#### Step 1: Setup Backend Service
+
+The frontend requires the backend API to be running. Follow these steps:
+
+1. **Clone the backend repository**:
 ```bash
-git clone <repository-url>
+# Navigate to your projects directory
+cd c:/Sourajit/bob-a-thon/candidate-onboarding/
+
+# Clone the backend repository
+git clone <backend-repository-url> builder-of-bytes-bob-a-thon-backend
+cd builder-of-bytes-bob-a-thon-backend
+```
+
+2. **Setup and start the backend**:
+```bash
+# Follow the backend's README.md for complete setup instructions
+# Typically involves:
+npm install          # Install backend dependencies
+npm run dev          # Start backend server
+```
+
+3. **Verify backend is running**:
+   - Backend should start on `http://localhost:8080`
+   - Open browser to `http://localhost:8080/api/health` (should return 200 OK)
+   - Check backend terminal logs for "Server started on port 8080" or similar message
+   - **Keep the backend terminal running** - do not close it
+
+> **Important**: The backend must be running before starting the frontend. Refer to the backend's README.md for detailed setup instructions including database configuration, environment variables, and any other prerequisites.
+
+#### Step 2: Setup Frontend Application
+
+1. **Clone the frontend repository** (if not already done):
+```bash
+# Navigate to your projects directory (open a new terminal)
+cd c:/Sourajit/bob-a-thon/candidate-onboarding/
+
+# Clone this repository
+git clone <frontend-repository-url> builder-of-bytes-bob-a-thon-frontend
 cd builder-of-bytes-bob-a-thon-frontend
 ```
 
@@ -49,16 +85,12 @@ cd builder-of-bytes-bob-a-thon-frontend
 npm install
 ```
 
-3. **Verify backend is running**:
-   - Open browser to `http://localhost:8080/api/health` (should return 200 OK)
-   - Or check backend logs for "Server started on port 8080"
-
-4. **Start the development server**:
+3. **Start the development server**:
 ```bash
 npm run dev
 ```
 
-5. **Open the application**:
+4. **Open the application**:
    - Navigate to `http://localhost:3000` in your browser
    - You should see the Dashboard with statistics
 
@@ -518,12 +550,20 @@ npm run type-check   # Run TypeScript compiler check
 
 1. **Start backend first**:
 ```bash
-cd ../backend
-npm run dev  # or your backend start command
+# Clone the backend repository
+
+git clone https://github.com/sourajit-basak-ibm/builder-of-bytes-bob-a-thon-backend.git
+
+# Start backend server (refer to backend's README.md for exact command)
 ```
 
-2. **Start frontend**:
+2. **Start frontend** (in a new terminal):
 ```bash
+# Checkout the frontend repository
+
+git clone https://github.com/sourajit-basak-ibm/builder-of-bytes-bob-a-thon-frontend.git
+
+# Start frontend server
 npm run dev
 ```
 

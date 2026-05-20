@@ -244,7 +244,7 @@ export const CandidateForm = () => {
                   className={`badge ${skill.mandatory ? 'badge-danger' : 'badge-info'} flex items-center gap-2`}
                 >
                   {skill.name} ({skill.proficiency})
-                  {skill.minimumYearsOfExperience > 0 && ` - ${skill.minimumYearsOfExperience}y`}
+                  {skill.minimumYearsOfExperience && skill.minimumYearsOfExperience > 0 && ` - ${skill.minimumYearsOfExperience}y`}
                   <button
                     type="button"
                     onClick={() => removeSkill(index)}
