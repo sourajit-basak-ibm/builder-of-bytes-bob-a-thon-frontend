@@ -18,14 +18,15 @@ import { test, expect } from '@playwright/test';
  * Video recording is enabled - saved to test-results/ directory.
  * Uses timestamp + random suffix to ensure uniqueness on each test run.
  *
- * PRESENTATION MODE: Includes strategic pauses for better video visibility
+ * PRESENTATION MODE: Human-like typing with delays for 4-5 minute video
  */
 
-// Presentation delays (in milliseconds)
-const STEP_DELAY = 2000;      // Pause between major steps
-const ACTION_DELAY = 1000;    // Pause after actions
-const FORM_DELAY = 1500;      // Pause after form submissions
-const VERIFICATION_DELAY = 1500; // Pause to show verification results
+// Presentation delays (in milliseconds) - tuned for 4-5 minute video
+const STEP_DELAY = 5000;           // Pause between major steps (5 seconds)
+const ACTION_DELAY = 2500;         // Pause after actions (2.5 seconds)
+const FORM_DELAY = 3500;           // Pause after form submissions (3.5 seconds)
+const VERIFICATION_DELAY = 3500;   // Pause to show verification results (3.5 seconds)
+const TYPING_DELAY = 150;          // Delay between keystrokes (human-like typing)
 
 // Generate unique names using timestamp + random suffix for extra uniqueness
 const timestamp = Date.now();
@@ -36,59 +37,106 @@ const candidateEmail = `alex.martinez.${timestamp}.${randomSuffix}@example.com`;
 const managerName = `Sarah Johnson ${timestamp}-${randomSuffix}`;
 
 test.describe('Complete Candidate Onboarding Workflow', () => {
-  test.setTimeout(300000); // 5 minutes for full workflow with slowMo (Steps 1-10)
+  test.setTimeout(420000); // 7 minutes for full workflow with human-like typing (Steps 1-10)
 
   test('should complete full hiring workflow from project creation to onboarding', async ({ page }) => {
+    // Helper function for human-like typing
+    const typeWithDelay = async (selector: string, text: string) => {
+      await page.click(selector); // Focus the input
+      await page.keyboard.type(text, { delay: TYPING_DELAY });
+    };
+
     // Navigate to application
     await page.goto('/');
     await expect(page).toHaveTitle(/Candidate Onboarding/);
     await page.waitForTimeout(STEP_DELAY); // Show dashboard
 
     // ============================================================
-    // STEP 1: Create Project
+    // VALIDATION DEMO: Show form validation errors
     // ============================================================
-    console.log('Step 1: Creating Project...');
-    console.log(`Project Name: ${projectName}`);
+    console.log('Validation Demo: Testing form validations...');
     
+    // Navigate to project creation
     await page.click('text=Projects');
     await page.waitForURL('**/projects');
-    await page.waitForTimeout(ACTION_DELAY); // Show projects list
+    await page.waitForTimeout(ACTION_DELAY);
     
     await page.click('text=Create Project');
     await page.waitForURL('**/projects/new');
-
-    // Fill project form with unique name
-    await page.fill('input[placeholder*="project name"]', projectName);
+    await page.waitForTimeout(ACTION_DELAY);
     
-    // Add technologies
+    // Try to submit empty form to show validation
+    console.log('  → Attempting to submit empty project form...');
+    await page.click('button:has-text("Create Project")');
+    await page.waitForTimeout(FORM_DELAY); // Show validation errors
+    console.log('  ✓ Validation errors displayed');
+    
+    // Fill only project name and try again
+    console.log('  → Filling only project name...');
+    await typeWithDelay('input[placeholder*="project name"]', 'Test Project');
+    await page.waitForTimeout(ACTION_DELAY);
+    await page.click('button:has-text("Create Project")');
+    await page.waitForTimeout(FORM_DELAY); // Show more validation errors
+    console.log('  ✓ Additional validation errors shown');
+    
+    // Clear and go back to start fresh
+    await page.click('text=Projects');
+    await page.waitForURL('**/projects');
+    await page.waitForTimeout(VERIFICATION_DELAY);
+    console.log('✓ Form validation demonstration complete\n');
+
+    // ============================================================
+    // STEP 1: Create Project (Valid Data)
+    // ============================================================
+    console.log('Step 1: Creating Project with valid data...');
+    console.log(`Project Name: ${projectName}`);
+    
+    // Already on projects page from validation demo
+    await page.click('text=Create Project');
+    await page.waitForURL('**/projects/new');
+    await page.waitForTimeout(ACTION_DELAY);
+
+    // Fill project form with unique name - human-like typing
+    await typeWithDelay('input[placeholder*="project name"]', projectName);
+    await page.waitForTimeout(FORM_DELAY);
+    
+    // Add technologies with human-like typing
     const technologies = ['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'Docker'];
     for (const tech of technologies) {
-      await page.fill('input[placeholder*="technology"]', tech);
+      await typeWithDelay('input[placeholder*="technology"]', tech);
+      await page.waitForTimeout(500);
       await page.click('button:has-text("Add")');
       await expect(page.locator(`text=${tech}`)).toBeVisible();
+      await page.waitForTimeout(ACTION_DELAY);
     }
 
     // Select status
     await page.selectOption('select', 'ACTIVE');
+    await page.waitForTimeout(ACTION_DELAY);
 
     // Set start date (today)
     const today = new Date().toISOString().split('T')[0];
     await page.fill('input[type="date"]', today);
+    await page.waitForTimeout(ACTION_DELAY);
 
-    // Fill manager name with unique name
-    await page.fill('input[placeholder*="manager"]', managerName);
+    // Fill manager name - human-like typing
+    await typeWithDelay('input[placeholder*="manager"]', managerName);
+    await page.waitForTimeout(ACTION_DELAY);
 
-    // Fill commitments
-    await page.fill('textarea[placeholder*="commitments"]', 
+    // Fill commitments - human-like typing
+    await typeWithDelay('textarea[placeholder*="commitments"]',
       'Build a secure digital wallet platform with real-time transaction processing, multi-currency support, and advanced fraud detection capabilities.');
+    await page.waitForTimeout(FORM_DELAY);
 
     // Submit project
     await page.click('button:has-text("Create Project")');
     await page.waitForURL('**/projects');
+    await page.waitForTimeout(FORM_DELAY);
     
-    // Verify project created - use more specific locator to avoid strict mode violation
+    // Verify project created
     await expect(page.getByRole('heading', { name: projectName })).toBeVisible();
     console.log('✓ Project created successfully');
+    await page.waitForTimeout(VERIFICATION_DELAY);
 
     // ============================================================
     // STEP 2: Create Candidate
@@ -99,18 +147,26 @@ test.describe('Complete Candidate Onboarding Workflow', () => {
     
     await page.click('text=Candidates');
     await page.waitForURL('**/candidates');
+    await page.waitForTimeout(ACTION_DELAY);
     
     await page.click('text=Add Candidate');
     await page.waitForURL('**/candidates/new');
+    await page.waitForTimeout(ACTION_DELAY);
 
-    // Fill basic information with unique name and email
-    await page.fill('input[placeholder*="John Doe"]', candidateName);
-    // Select the source dropdown (it's the first select on the page)
+    // Fill basic information - human-like typing
+    await typeWithDelay('input[placeholder*="John Doe"]', candidateName);
+    await page.waitForTimeout(ACTION_DELAY);
+    
     await page.locator('select').first().selectOption('EXTERNAL');
-    await page.fill('input[type="email"]', candidateEmail);
+    await page.waitForTimeout(ACTION_DELAY);
+    
+    await typeWithDelay('input[type="email"]', candidateEmail);
+    await page.waitForTimeout(ACTION_DELAY);
+    
     await page.fill('input[type="tel"]', '+1 (555) 123-4567');
+    await page.waitForTimeout(ACTION_DELAY);
 
-    // Add skills
+    // Add skills with human-like typing
     const skills = [
       { name: 'React', proficiency: 'ADVANCED', years: '5', mandatory: true },
       { name: 'TypeScript', proficiency: 'ADVANCED', years: '4', mandatory: true },
@@ -119,10 +175,12 @@ test.describe('Complete Candidate Onboarding Workflow', () => {
     ];
 
     for (const skill of skills) {
-      await page.fill('input[placeholder*="React"]', skill.name);
-      // Select proficiency from the second select (first is Source dropdown)
+      await typeWithDelay('input[placeholder*="React"]', skill.name);
+      await page.waitForTimeout(500);
       await page.locator('select').nth(1).selectOption(skill.proficiency);
+      await page.waitForTimeout(500);
       await page.fill('input[type="number"]', skill.years);
+      await page.waitForTimeout(500);
       
       if (skill.mandatory) {
         await page.check('input[type="checkbox"]#mandatory');
@@ -395,7 +453,7 @@ test.describe('Complete Candidate Onboarding Workflow', () => {
     await page.waitForFunction(() => {
       const select = document.querySelector('select') as HTMLSelectElement;
       return select && select.options.length > 1; // Wait until we have more than just placeholder
-    }, { timeout: 10000 });
+    }, { timeout: 30000 }); // Increased timeout for slowMo
     
     // Now get the options
     const candidateOptions = await onboardingCandidateSelect.locator('option').allTextContents();

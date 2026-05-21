@@ -1,18 +1,43 @@
 # End-to-End Test Summary
 
 ## Overview
-Automated Playwright test that demonstrates the **complete** candidate onboarding workflow (Steps 1-10) with Full HD video recording at presentation speed.
+Automated Playwright test that demonstrates the **complete** candidate onboarding workflow with form validation demonstrations and all 10 workflow steps, recorded in Full HD at human-like speed.
 
 ## Test Execution
 - **Test File**: `tests/complete-workflow.spec.ts`
-- **Duration**: ~59.5 seconds (slowed down for better visibility)
-- **Status**: ✅ PASSED (All 10 Steps)
+- **Duration**: ~4.0 minutes (perfect for presentations)
+- **Status**: ✅ PASSED (Validation Demo + All 10 Steps)
 - **Video**: `test-results/complete-workflow-Complete-5652d-ject-creation-to-onboarding-chromium/video.webm`
 - **Resolution**: 1920x1080 (Full HD)
 - **Browser**: Chromium
-- **Playback Speed**: 300ms slowMo for human-friendly viewing
+- **Playback Speed**: 500ms slowMo + human-like typing (150ms per keystroke)
+- **Presentation Features**: Form validation demo, strategic pauses, readable typing
 
-## Workflow Steps Automated
+## Test Content
+
+### Validation Demonstration ✅
+**Purpose**: Show form validation in action before the main workflow
+
+1. **Empty Form Submission**
+   - Navigate to project creation form
+   - Attempt to submit without filling any fields
+   - Display: Required field validation errors
+   - Duration: ~4 seconds to show errors
+
+2. **Partial Form Submission**
+   - Fill only project name field
+   - Attempt to submit incomplete form
+   - Display: Additional validation errors for missing fields
+   - Duration: ~4 seconds to show errors
+
+3. **Return to Clean State**
+   - Navigate back to projects list
+   - Demonstrates proper error handling and user guidance
+   - Duration: ~4 seconds
+
+**Total Validation Demo Time**: ~30 seconds
+
+### Workflow Steps Automated
 
 ### Step 1: Create Project ✅
 - **Project Name**: Digital Wallet Platform (with unique timestamp)

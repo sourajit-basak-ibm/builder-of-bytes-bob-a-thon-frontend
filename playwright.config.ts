@@ -43,8 +43,8 @@ export default defineConfig({
     /* Video size */
     viewport: { width: 1920, height: 1080 },
     
-    /* Timeout for each action */
-    actionTimeout: 10000,
+    /* Timeout for each action - increased for human-like typing */
+    actionTimeout: 30000,
     
     /* Navigation timeout */
     navigationTimeout: 30000,
@@ -60,9 +60,9 @@ export default defineConfig({
           mode: 'on',
           size: { width: 1920, height: 1080 }
         },
-        // Slow down all actions by 300ms for better video visibility (not too slow to cause timing issues)
+        // Slow down all actions by 500ms for human-like pacing (4-5 min video)
         launchOptions: {
-          slowMo: 300,
+          slowMo: 500,
         },
       },
     },
